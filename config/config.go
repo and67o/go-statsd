@@ -5,7 +5,7 @@ import (
 )
 
 func init() {
-	if err := godotenv.Load("logger/.env"); err != nil {
+	if err := godotenv.Load(".env"); err != nil {
 		panic("No .env file found")
 	}
 }

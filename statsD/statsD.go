@@ -8,12 +8,16 @@ import (
 	"strconv"
 )
 
-//type Operations interface {
-//	Gauge(bucket string, value int)
-//}
+type Operations interface {
+	Gauge(bucket string, value int)
+	Close()
+}
 
 type Manager struct {
 	statsD *statsd.Client
+}
+func (M *Manager) Close() {
+	M.statsD.Close()
 }
 
 func (M *Manager) Gauge(bucket string, value int) {
@@ -32,13 +36,9 @@ func New() *Manager {
 	if err != nil {
 		panic(err)
 	}
-	defer client.Close()
-
-	//client.Gauge("num_goroutine", 321)
 
 	log.Print("StatsD connect")
 	return &Manager{client}
-	//StatsD = &Manager{client}
 }
 
 
