@@ -1,13 +1,13 @@
 package metrics
 
 import (
-	"bufio"
-	"bytes"
-	"fmt"
-	"os"
+	"github.com/hpcloud/tail"
+	"logger/bytesUtils"
+	"strconv"
+	"sync"
 )
 
-const FILE = "/var/log/apache2/dev.eljur.access.log"
+const file = "/var/log/apache2/dev.eljur.access.log"
 
 type Access struct {
 	total   int
@@ -16,76 +16,60 @@ type Access struct {
 	other   int
 }
 
-func (a *Access) setTotal() {
-	a.total = 3
+func (a *Access) incrementTotal() {
+	a.total++
 }
 
-func (a *Access) setApi() {
-	a.api = 4
+func (a *Access) incrementApi() {
+	a.api++
 }
 
-func (a *Access) setStorage() {
-	a.storage = 5
+func (a *Access) incrementStorage() {
+	a.storage++
 }
 
-func (a *Access) setOther() {
-	a.other = 6
+func (a *Access) incrementOther() {
+	a.other++
 }
 
-func (a *Access) Get(name string) map[string]int {
-	return map[string]int{
-		"pache.requests.total":    555,
-		"apache.requests.api":   234,
-		"apache.requests.storage": 435,
-		"apache.requests.site":    123,
-	}
-}
-
-func (a *Access) Get1(name string) (interface{}, error) {
-	file, err := os.Open(FILE)
-	if err != nil {
-		return 0, err
-	}
-	defer file.Close()
-
-	fileScanner := bufio.NewScanner(file)
-
-	var scannerBytes []byte
-
-	var countApi = 0
-	var countStorage = 0
-	var countOther = 0
-	var countLine = 0
-
-	charsApi := []byte("api")
-	charsStorage := []byte("storage")
-
-	w := bufio.NewWriterSize(os.Stdout, 1000000)
-	for fileScanner.Scan() {
-		scannerBytes = fileScanner.Bytes()
-
-		countLine++
-
-		if !bytes.Contains(scannerBytes, charsApi) && !bytes.Contains(scannerBytes, charsStorage) {
-			countOther++
+func (a *Access) Get(done <-chan struct{}, chanText chan map[string]string, wg *sync.WaitGroup) {
+	wg.Add(1)
+	func() {
+		t, _ := tail.TailFile(file, tail.Config{Follow: true})
+		defer wg.Done()
+		for line := range t.Lines {
+			a.handleText([]byte(line.Text))
+			select {
+			case <-done:
+				return
+			case chanText <- a.getAllMetrics():
+			}
 		}
-
-		if bytes.Contains(scannerBytes, charsApi) {
-			countApi++
-		}
-
-		if bytes.Contains(scannerBytes, charsStorage) {
-			countStorage++
-		}
-	}
-	_ = w.Flush()
-
-	if err := fileScanner.Err(); err != nil {
-		return 0, err
-	}
-	return 2, nil
+	}()
+	wg.Wait()
 }
 
-func (a *Access) Set(name string, value interface{}) {
-	fmt.Println(222)
+func (a *Access) getAllMetrics() map[string]string {
+	return map[string]string{
+		"apache.requests.total":   strconv.Itoa(a.total),
+		"apache.requests.api":     strconv.Itoa(a.api),
+		"apache.requests.storage": strconv.Itoa(a.storage),
+		"apache.requests.site":    strconv.Itoa(a.other),
+	}
+}
+
+func (a *Access) handleText(scannerBytes []byte) {
+	a.incrementTotal()
+
+	if bytesUtils.Contains(scannerBytes, []string{"/api"}) {
+		a.incrementApi()
+	}
+
+	if bytesUtils.Contains(scannerBytes, []string{"/storage"}) {
+		a.incrementStorage()
+	}
+
+	if !bytesUtils.Contains(scannerBytes, []string{"/api", "/storage"}) {
+		a.incrementOther()
+	}
 }

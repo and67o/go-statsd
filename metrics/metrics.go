@@ -1,7 +1,7 @@
 package metrics
 
+import "sync"
+
 type Metrics interface {
-	//Get(name string) (interface{}, error)
-	Get(name string) map[string]int
-	Set(name string, value interface{})
+	Get(done <-chan struct{}, chanText chan map[string]string, wg *sync.WaitGroup)
 }
