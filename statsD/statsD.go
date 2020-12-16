@@ -24,8 +24,6 @@ func (M *Manager) Gauge(bucket string, value int) {
 	M.statsD.Gauge(bucket, value)
 }
 
-//var StatsD Operations
-
 func New() *Manager {
 	address,err := getAddr()
 	if err != nil {

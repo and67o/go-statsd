@@ -8,7 +8,7 @@ import (
 type test struct {
 	line     []byte
 	input    []string
-	expected boolT
+	expected bool
 }
 
 func TestContains(t *testing.T) {

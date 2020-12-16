@@ -2,10 +2,9 @@ package metrics
 
 import (
 	"bytes"
-	"io"
 	"os"
 	"os/exec"
-	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -28,53 +27,58 @@ type Data struct {
 	percentUsed string
 }
 
+func (d *Data) SetFront(data map[string]string) {
+	d.left = data["left"]
+	d.total = data["total"]
+	d.used = data["used"]
+	d.percentUsed = data["percent_used"]
+}
+
 func commandExec(search string) map[string]string {
 	spaceCmd := exec.Command("df", "-B", "1M")
-	findCmd := exec.Command("grep", search)
-
-	reader, writer := io.Pipe()
+	grepCmd := exec.Command("grep", search)
 	var buf bytes.Buffer
-	spaceCmd.Stdout = writer
-	findCmd.Stdin = reader
-	findCmd.Stdout = &buf
 
-	spaceCmd.Start()
-	findCmd.Start()
+	grepCmd.Stdin, _ = spaceCmd.StdoutPipe()
+	grepCmd.Stdout = os.Stdout
+	grepCmd.Stdout = &buf
 
-	spaceCmd.Wait()
-	writer.Close()
+	_ = grepCmd.Start()
+	_ = spaceCmd.Run()
+	_ = grepCmd.Wait()
 
-	findCmd.Wait()
-	reader.Close()
-	io.Copy(os.Stdout, &buf)
-
-	s := regexp.MustCompile("/\\s\\s+/").Split(buf.String(), 5)
-	if len(s) == 5 {
+	resGrep:= strings.Fields(buf.String())
+	if len(resGrep) == 6 {
 		return map[string]string{
-			"total":        s[1],
-			"used":         s[2],
-			"left":         s[3],
-			"percent_used": s[3],
+			"total":        resGrep[1],
+			"used":         resGrep[2],
+			"left":         resGrep[3],
+			"percent_used": resGrep[4],
 		}
 	}
 	return map[string]string{}
 }
 
-func (s *Space) handleText() map[string]string {
-	//res := commandExec("data-front")
-	res := commandExec("loop51")
-	//res1 := commandExec("storage")
-	res1 := commandExec("loop52")
-	return map[string]string{
-		"disk.root.total":        res["total"],
-		"disk.root.used":         res["used"],
-		"disk.root.left":         res["left"],
-		"disk.root.percent_used": res["percent_used"],
 
-		"disk.storage.total":        res1["total"],
-		"disk.storage.used":         res1["used"],
-		"disk.storage.left":         res1["left"],
-		"disk.storage.percent_used": res1["percent_used"],
+func (s *Space) handle() {
+	dataFront := commandExec("loop51")   //"data-front"
+	dataStorage := commandExec("loop52") //"storage"
+
+	s.Root.SetFront(dataFront)
+	s.Storage.SetFront(dataStorage)
+}
+
+func (s *Space) getAllMetrics() map[string]string {
+	return map[string]string{
+		"disk.root.total":        s.Root.total,
+		"disk.root.used":         s.Root.used,
+		"disk.root.left":         s.Root.left,
+		"disk.root.percent_used": s.Root.percentUsed,
+
+		"disk.storage.total":        s.Storage.total,
+		"disk.storage.used":         s.Storage.used,
+		"disk.storage.left":         s.Storage.left,
+		"disk.storage.percent_used": s.Storage.percentUsed,
 	}
 }
 
@@ -84,11 +88,12 @@ func (s *Space) Get(done <-chan struct{}, chanText chan map[string]string, wg *s
 		ticker := time.NewTicker(time.Second)
 		defer wg.Done()
 		for {
+			s.handle()
 			select {
 			case <-done:
 				return
 			case <-ticker.C:
-				chanText <- s.handleText()
+				chanText <- s.getAllMetrics()
 			}
 		}
 	}()

@@ -69,11 +69,13 @@ func (a *Errors) handleText(scannerBytes []byte) {
 		a.incrementTime()
 	}
 
-	if bytesUtils.Contains(scannerBytes, []string{"PHP Warning"}) {
+	if bytesUtils.Contains(scannerBytes, []string{"PHP Warning"}) &&
+		!bytesUtils.Contains(scannerBytes, []string{"SQLERR"}) &&
+		!bytesUtils.Contains(scannerBytes, []string{"Maximum execution time"}){
 		a.incrementWarning()
 	}
 
-	if bytesUtils.Contains(scannerBytes, []string{"SQLERR:"}) {
+	if bytesUtils.Contains(scannerBytes, []string{"SQLERR"}) {
 		a.incrementSql()
 	}
 

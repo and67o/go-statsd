@@ -19,6 +19,7 @@ func (a *App) Initialize() {
 func (a *App) Run(stopCh chan struct{}) {
 	c := a.StatsD
 	defer c.Close()
+
 	m := getAllMetrics()
 
 	metricsStr := worker(stopCh, m)
