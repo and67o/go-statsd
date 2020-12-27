@@ -16,7 +16,10 @@ func (a *App) Initialize() {
 	a.StatsD = statsD.New()
 }
 
-func (a *App) Run(stopCh chan struct{}) {
+func (a *App) Run() {
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
 	c := a.StatsD
 	defer c.Close()
 
