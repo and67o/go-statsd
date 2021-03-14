@@ -5,7 +5,6 @@ go 1.15
 require (
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/hpcloud/tail v1.0.0
-	github.com/joho/godotenv v1.3.0
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/exp/errors v0.0.0-20201008143054-e3b2a7f2fdc7
 	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68 // indirect

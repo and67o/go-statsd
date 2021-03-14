@@ -2,17 +2,22 @@ package metrics
 
 import (
 	"bytes"
+	"logger/internal/options"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
 type Space struct {
+	options options.Options
+
 	Root
 	Storage
 }
+
 type Root struct {
 	Data
 }
@@ -28,10 +33,17 @@ type Data struct {
 }
 
 func (d *Data) SetFront(data map[string]string) {
-	d.left = data["left"]
-	d.total = data["total"]
+	usedInt, _ := strconv.Atoi(data["used"])
+	totalInt, _ := strconv.Atoi(data["total"])
+	percentUsed := 0
+	if totalInt > 0 {
+		percentUsed = (usedInt / totalInt) * 100
+	}
+
 	d.used = data["used"]
-	d.percentUsed = data["percent_used"]
+	d.total = data["total"]
+	d.left = string(rune(totalInt - usedInt))
+	d.percentUsed = string(rune(percentUsed))
 }
 
 func commandExec(search string) map[string]string {
@@ -47,7 +59,7 @@ func commandExec(search string) map[string]string {
 	_ = spaceCmd.Run()
 	_ = grepCmd.Wait()
 
-	resGrep:= strings.Fields(buf.String())
+	resGrep := strings.Fields(buf.String())
 	if len(resGrep) == 6 {
 		return map[string]string{
 			"total":        resGrep[1],
@@ -59,26 +71,30 @@ func commandExec(search string) map[string]string {
 	return map[string]string{}
 }
 
-
 func (s *Space) handle() {
-	dataFront := commandExec("loop51")   //"data-front"
-	dataStorage := commandExec("loop52") //"storage"
+	dataFront := commandExec("data-front") //"data-front"
+	dataStorage := commandExec("storage")  //"storage"
 
 	s.Root.SetFront(dataFront)
 	s.Storage.SetFront(dataStorage)
 }
 
 func (s *Space) getAllMetrics() map[string]string {
-	return map[string]string{
-		"disk.root.total":        s.Root.total,
-		"disk.root.used":         s.Root.used,
-		"disk.root.left":         s.Root.left,
-		"disk.root.percent_used": s.Root.percentUsed,
+	prefix := ""
+	if s.options.Debug {
+		prefix = "_test"
+	}
 
-		"disk.storage.total":        s.Storage.total,
-		"disk.storage.used":         s.Storage.used,
-		"disk.storage.left":         s.Storage.left,
-		"disk.storage.percent_used": s.Storage.percentUsed,
+	return map[string]string{
+		"disk.root.total" + prefix:        s.Root.total,
+		"disk.root.used" + prefix:         s.Root.used,
+		"disk.root.left" + prefix:         s.Root.left,
+		"disk.root.percent_used" + prefix: s.Root.percentUsed,
+
+		"disk.storage.total" + prefix:        s.Storage.total,
+		"disk.storage.used" + prefix:         s.Storage.used,
+		"disk.storage.left" + prefix:         s.Storage.left,
+		"disk.storage.percent_used" + prefix: s.Storage.percentUsed,
 	}
 }
 
@@ -98,4 +114,8 @@ func (s *Space) Get(done <-chan struct{}, chanText chan map[string]string, wg *s
 		}
 	}()
 	wg.Wait()
+}
+
+func (s *Space) SetParams(o options.Options) {
+	s.options = o
 }

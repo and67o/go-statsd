@@ -1,4 +1,4 @@
-package bytesUtils
+package helper
 
 import (
 	"github.com/stretchr/testify/require"

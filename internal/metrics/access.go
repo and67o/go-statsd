@@ -2,14 +2,15 @@ package metrics
 
 import (
 	"github.com/hpcloud/tail"
-	"logger/bytesUtils"
+	"logger/internal/helper"
+	"logger/internal/options"
 	"strconv"
 	"sync"
 )
 
-const file = "/var/log/apache2/dev.eljur.access.log"
-
 type Access struct {
+	options options.Options
+
 	total   int
 	api     int
 	storage int
@@ -35,7 +36,7 @@ func (a *Access) incrementOther() {
 func (a *Access) Get(done <-chan struct{}, chanText chan map[string]string, wg *sync.WaitGroup) {
 	wg.Add(1)
 	func() {
-		t, _ := tail.TailFile(file, tail.Config{Follow: true})
+		t, _ := tail.TailFile(a.options.AccessPath, tail.Config{Follow: true})
 		defer wg.Done()
 		for line := range t.Lines {
 			a.handleText([]byte(line.Text))
@@ -50,26 +51,35 @@ func (a *Access) Get(done <-chan struct{}, chanText chan map[string]string, wg *
 }
 
 func (a *Access) getAllMetrics() map[string]string {
+	prefix := ""
+	if a.options.Debug {
+		prefix = "_test"
+	}
+
 	return map[string]string{
-		"apache.requests.total":   strconv.Itoa(a.total),
-		"apache.requests.api":     strconv.Itoa(a.api),
-		"apache.requests.storage": strconv.Itoa(a.storage),
-		"apache.requests.site":    strconv.Itoa(a.other),
+		"apache.requests.total" + prefix:   strconv.Itoa(a.total),
+		"apache.requests.api" + prefix:     strconv.Itoa(a.api),
+		"apache.requests.storage" + prefix: strconv.Itoa(a.storage),
+		"apache.requests.site" + prefix:    strconv.Itoa(a.other),
 	}
 }
 
 func (a *Access) handleText(scannerBytes []byte) {
 	a.incrementTotal()
 
-	if bytesUtils.Contains(scannerBytes, []string{"/api"}) {
+	if helper.Contains(scannerBytes, []string{"/api"}) {
 		a.incrementApi()
 	}
 
-	if bytesUtils.Contains(scannerBytes, []string{"/storage"}) {
+	if helper.Contains(scannerBytes, []string{"/storage"}) {
 		a.incrementStorage()
 	}
 
-	if !bytesUtils.Contains(scannerBytes, []string{"/api", "/storage"}) {
+	if !helper.Contains(scannerBytes, []string{"/api", "/storage"}) {
 		a.incrementOther()
 	}
+}
+
+func (a *Access) SetParams(o options.Options) {
+	a.options = o
 }
